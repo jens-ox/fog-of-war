@@ -1,4 +1,6 @@
 use geo::Point;
+use rayon::prelude::*;
+use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
 
 /// Round coordinates to nearest 10 meters
@@ -45,5 +47,64 @@ impl From<Point> for HashablePoint {
 impl From<HashablePoint> for Point {
     fn from(hashable: HashablePoint) -> Self {
         hashable.original
+    }
+}
+
+/// Sanitize a collection of points by rounding to 10 meters and removing duplicates
+/// Returns the sanitized points and statistics about the deduplication
+pub fn sanitize(points: Vec<Point>) -> (Vec<Point>, SanitizeStats) {
+    let original_count = points.len();
+
+    if original_count == 0 {
+        return (
+            points,
+            SanitizeStats {
+                final_count: 0,
+                removed_count: 0,
+                removal_percentage: 0.0,
+            },
+        );
+    }
+
+    println!(
+        "Sanitizing {} points (rounding to 10m and deduplicating)...",
+        original_count
+    );
+
+    // Convert to hashable points (this automatically rounds and enables deduplication)
+    let unique_points: HashSet<HashablePoint> =
+        points.into_par_iter().map(HashablePoint::from).collect();
+
+    // Convert back to regular points
+    let sanitized_points: Vec<Point> = unique_points.into_iter().map(Point::from).collect();
+
+    let final_count = sanitized_points.len();
+    let removed_count = original_count - final_count;
+    let removal_percentage = (removed_count as f64 / original_count as f64) * 100.0;
+
+    let stats = SanitizeStats {
+        final_count,
+        removed_count,
+        removal_percentage,
+    };
+
+    (sanitized_points, stats)
+}
+
+/// Statistics from the sanitization process
+#[derive(Debug)]
+pub struct SanitizeStats {
+    pub final_count: usize,
+    pub removed_count: usize,
+    pub removal_percentage: f64,
+}
+
+impl SanitizeStats {
+    pub fn print(&self) {
+        println!(
+            "Removed {} duplicate points ({:.2}% reduction)",
+            self.removed_count, self.removal_percentage
+        );
+        println!("Final point count: {}", self.final_count);
     }
 }

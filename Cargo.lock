@@ -674,6 +674,7 @@ dependencies = [
  "proj",
  "rayon",
  "serde",
+ "serde_json",
  "walkdir",
 ]
 

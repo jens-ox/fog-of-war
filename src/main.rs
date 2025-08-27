@@ -1,18 +1,14 @@
 mod hashable_point;
+mod parsers;
 
 use fgbfile::FgbFile;
 use geo::Point;
-use gpx::Gpx;
-use hashable_point::HashablePoint;
-use indicatif::ParallelProgressIterator;
+use hashable_point::sanitize;
+use parsers::{Parser, google_timeline::GoogleTimelineParser, gpx::GpxParser};
 use proj::Proj;
 use rayon::prelude::*;
 use serde::Serialize;
-use std::collections::HashSet;
-use std::fs::File;
-use std::io::BufReader;
 use std::path::Path;
-use walkdir::WalkDir;
 
 pub const DATA_DIR: &str = "data";
 pub const OUT_PATH: &str = "data/out.fgb";
@@ -31,41 +27,30 @@ thread_local! {
 }
 
 fn main() -> Result<(), ()> {
-    println!("Searching for .gpx files in {} directory...", DATA_DIR);
+    let data_dir = Path::new(DATA_DIR);
 
-    // Find all .gpx files recursively
-    let gpx_files: Vec<_> = WalkDir::new(DATA_DIR)
-        .into_iter()
-        .filter_map(|e| e.ok())
-        .filter(|entry| {
-            entry.file_type().is_file()
-                && entry.path().extension().map_or(false, |ext| ext == "gpx")
-        })
-        .collect();
+    // Initialize all parsers
+    let parsers: Vec<Box<dyn Parser>> = vec![Box::new(GpxParser), Box::new(GoogleTimelineParser)];
 
-    println!("Found {} .gpx files", gpx_files.len());
-    println!("Processing files in parallel...\n");
+    // Collect points from all parsers
+    let mut all_points = Vec::new();
 
-    // Process files in parallel using rayon and collect all points
-    let mut all_points: Vec<Point> = gpx_files
-        .into_par_iter()
-        .progress()
-        .filter_map(|entry| {
-            let file_path = entry.path();
-
-            match extract_points_from_gpx(file_path) {
-                Ok(points) => Some(points),
-                Err(e) => {
-                    println!("✗ Error processing {}: {}", file_path.display(), e);
-                    None
-                }
+    for parser in &parsers {
+        println!("\n--- Running {} ---", parser.name());
+        match parser.parse(data_dir) {
+            Ok(mut points) => {
+                println!("✓ {} extracted {} points", parser.name(), points.len());
+                all_points.append(&mut points);
             }
-        })
-        .flatten()
-        .collect();
+            Err(e) => {
+                println!("✗ {} failed: {}", parser.name(), e);
+            }
+        }
+    }
 
+    println!("\n--- Summary ---");
     println!(
-        "\nCollected {} total points from all files",
+        "Collected {} total points from all parsers",
         all_points.len()
     );
 
@@ -83,70 +68,23 @@ fn main() -> Result<(), ()> {
     });
 
     println!("Successfully transformed {} points", all_points.len());
-    
-    // Round coordinates to nearest 10 meters and deduplicate
-    println!("Rounding coordinates to nearest 10 meters and deduplicating...");
-    let original_count = all_points.len();
-    
-    // Convert to hashable points (this automatically rounds and enables deduplication)
-    let unique_points: HashSet<HashablePoint> = all_points
-        .into_par_iter()
-        .map(HashablePoint::from)
-        .collect();
-    
-    // Convert back to regular points
-    all_points = unique_points.into_iter().map(Point::from).collect();
-    
-    let final_count = all_points.len();
-    let removed_count = original_count - final_count;
-    let removal_percentage = (removed_count as f64 / original_count as f64) * 100.0;
-    
-    println!("Removed {} duplicate points ({:.2}% reduction)", removed_count, removal_percentage);
-    println!("Final point count: {}", final_count);
+
+    // Sanitize points (round to 10m and deduplicate)
+    let (sanitized_points, stats) = sanitize(all_points);
+    stats.print();
 
     // Write to FlatGeobuf file
-    println!("Writing points to {}...", OUT_PATH);
+    println!("\nWriting points to {}...", OUT_PATH);
 
-    write_to_flatgeobuf(&all_points).expect("writing to FGB to work");
+    write_to_flatgeobuf(&sanitized_points).expect("writing to FGB to work");
 
     println!(
         "✓ Successfully wrote {} points to {}",
-        all_points.len(),
+        sanitized_points.len(),
         OUT_PATH
     );
 
     Ok(())
-}
-
-fn extract_points_from_gpx(file_path: &Path) -> Result<Vec<Point>, Box<dyn std::error::Error>> {
-    let file = File::open(file_path)?;
-    let reader = BufReader::new(file);
-    let gpx: Gpx = gpx::read(reader)?;
-
-    let mut points = Vec::new();
-
-    // Extract waypoints
-    for waypoint in &gpx.waypoints {
-        points.push(waypoint.point());
-    }
-
-    // Extract track points
-    for track in &gpx.tracks {
-        for segment in &track.segments {
-            for track_point in &segment.points {
-                points.push(track_point.point());
-            }
-        }
-    }
-
-    // Extract route points
-    for route in &gpx.routes {
-        for route_point in &route.points {
-            points.push(route_point.point());
-        }
-    }
-
-    Ok(points)
 }
 
 fn write_to_flatgeobuf(points: &Vec<Point>) -> Result<(), Box<dyn std::error::Error>> {
