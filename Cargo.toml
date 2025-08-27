@@ -1,0 +1,14 @@
+[package]
+name = "point-cloud"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+gpx = "0.10"
+walkdir = "2.4"
+rayon = "1.8"
+proj = "0.27"
+fgbfile = "0.6.0"
+geo = "0.30.0"
+serde = "1.0.219"
+indicatif = { version = "0.18.0", features = ["rayon"] }
