@@ -1,4 +1,5 @@
 use super::Parser;
+use flate2::read::GzDecoder;
 use geo::Point;
 use gpx::Gpx;
 use indicatif::ParallelProgressIterator;
@@ -12,25 +13,33 @@ pub struct GpxParser;
 
 impl Parser for GpxParser {
     fn parse(&self, data_dir: &Path) -> Result<Vec<Point>, Box<dyn std::error::Error>> {
-        println!("Searching for .gpx files in {} directory...", data_dir.display());
+        println!("Searching for .gpx and .gpx.gz files in {} directory...", data_dir.display());
 
-        // Find all .gpx files recursively
+        // Find all .gpx and .gpx.gz files recursively
         let gpx_files: Vec<_> = WalkDir::new(data_dir)
             .into_iter()
             .filter_map(|e| e.ok())
             .filter(|entry| {
-                entry.file_type().is_file()
-                    && entry.path().extension().map_or(false, |ext| ext == "gpx")
+                if !entry.file_type().is_file() {
+                    return false;
+                }
+                
+                let path = entry.path();
+                let file_name = path.file_name()
+                    .and_then(|name| name.to_str())
+                    .unwrap_or("");
+                
+                file_name.ends_with(".gpx") || file_name.ends_with(".gpx.gz")
             })
             .collect();
 
-        println!("Found {} .gpx files", gpx_files.len());
+        println!("Found {} GPX files (.gpx and .gpx.gz)", gpx_files.len());
 
         if gpx_files.is_empty() {
             return Ok(Vec::new());
         }
 
-        println!("Processing {} .gpx files in parallel...", gpx_files.len());
+        println!("Processing {} GPX files in parallel...", gpx_files.len());
 
         // Process files in parallel using rayon and collect all points
         let all_points: Vec<Point> = gpx_files
@@ -50,7 +59,7 @@ impl Parser for GpxParser {
             .flatten()
             .collect();
 
-        println!("✓ Extracted {} total points from .gpx files", all_points.len());
+        println!("✓ Extracted {} total points from GPX files", all_points.len());
         Ok(all_points)
     }
 
@@ -61,8 +70,23 @@ impl Parser for GpxParser {
 
 fn extract_points_from_gpx(file_path: &Path) -> Result<Vec<Point>, Box<dyn std::error::Error>> {
     let file = File::open(file_path)?;
-    let reader = BufReader::new(file);
-    let gpx: Gpx = gpx::read(reader)?;
+    
+    // Check if the file is gzip compressed
+    let is_gzipped = file_path.file_name()
+        .and_then(|name| name.to_str())
+        .map(|name| name.ends_with(".gz"))
+        .unwrap_or(false);
+    
+    let gpx: Gpx = if is_gzipped {
+        // Decompress gzip file
+        let decoder = GzDecoder::new(file);
+        let reader = BufReader::new(decoder);
+        gpx::read(reader)?
+    } else {
+        // Read plain GPX file
+        let reader = BufReader::new(file);
+        gpx::read(reader)?
+    };
 
     let mut points = Vec::new();
 

@@ -668,6 +668,7 @@ name = "point-cloud"
 version = "0.1.0"
 dependencies = [
  "fgbfile",
+ "flate2",
  "geo",
  "gpx",
  "indicatif",
