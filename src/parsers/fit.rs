@@ -9,6 +9,9 @@ use std::io::Read;
 use std::path::Path;
 use walkdir::WalkDir;
 
+/**
+ * Parse .fit.gz files, which I get from Strava for newer activities.
+ */
 pub struct FitParser;
 
 impl Parser for FitParser {
@@ -18,7 +21,6 @@ impl Parser for FitParser {
             data_dir.display()
         );
 
-        // Find all .fit.gz files recursively
         let fit_files: Vec<_> = WalkDir::new(data_dir)
             .into_iter()
             .filter_map(|e| e.ok())
@@ -48,7 +50,6 @@ impl Parser for FitParser {
             fit_files.len()
         );
 
-        // Process files in parallel using rayon and collect all points
         let all_points: Vec<Point> = fit_files
             .into_par_iter()
             .progress()
@@ -79,18 +80,15 @@ impl Parser for FitParser {
 }
 
 fn extract_points_from_fit_gz(file_path: &Path) -> Result<Vec<Point>, Box<dyn std::error::Error>> {
-    // Open and decompress the .gz file
     let file = File::open(file_path)?;
     let mut decoder = GzDecoder::new(file);
     let mut decompressed_data = Vec::new();
     decoder.read_to_end(&mut decompressed_data)?;
 
-    // Parse the FIT file
     let fit_file = fitparser::from_bytes(&decompressed_data)?;
 
     let mut points = Vec::new();
 
-    // Extract GPS coordinates from FIT records
     for record in fit_file.iter() {
         if let Some(point) = extract_coordinates_from_record(record) {
             points.push(point);
@@ -104,7 +102,6 @@ fn extract_coordinates_from_record(record: &FitDataRecord) -> Option<Point> {
     let mut latitude: Option<f64> = None;
     let mut longitude: Option<f64> = None;
 
-    // Look for position fields in the record
     for field in record.fields() {
         match field.name() {
             "position_lat" => {
@@ -117,13 +114,12 @@ fn extract_coordinates_from_record(record: &FitDataRecord) -> Option<Point> {
                     longitude = Some(lon_value);
                 }
             }
-            _ => {} // Ignore other fields
+            _ => {} // ignore other fields
         }
     }
 
-    // Create point if both coordinates are available
     if let (Some(lat), Some(lon)) = (latitude, longitude) {
-        // Convert from semicircles to degrees
+        // convert from semicircles to degrees
         let lat_degrees = lat * (180.0 / 2_147_483_648.0);
         let lon_degrees = lon * (180.0 / 2_147_483_648.0);
 

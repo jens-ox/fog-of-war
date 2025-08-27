@@ -29,14 +29,12 @@ thread_local! {
 fn main() -> Result<(), ()> {
     let data_dir = Path::new(DATA_DIR);
 
-    // Initialize all parsers
     let parsers: Vec<Box<dyn Parser>> = vec![
-        Box::new(GpxParser), 
+        Box::new(GpxParser),
         Box::new(GoogleTimelineParser),
         Box::new(FitParser),
     ];
 
-    // Collect points from all parsers
     let mut all_points = Vec::new();
 
     for parser in &parsers {
@@ -63,8 +61,7 @@ fn main() -> Result<(), ()> {
         return Ok(());
     }
 
-    // Transform coordinates from WGS84 to EPSG:3857
-    println!("Transforming coordinates from WGS84 to EPSG:3857...");
+    println!("Transforming coordinates...");
 
     PROJ_METER.with(|proj| {
         proj.project_array(&mut all_points, false)
@@ -73,11 +70,9 @@ fn main() -> Result<(), ()> {
 
     println!("Successfully transformed {} points", all_points.len());
 
-    // Sanitize points (round to 10m and deduplicate)
     let (sanitized_points, stats) = sanitize(all_points);
     stats.print();
 
-    // Write to FlatGeobuf file
     println!("\nWriting points to {}...", OUT_PATH);
 
     write_to_flatgeobuf(&sanitized_points).expect("writing to FGB to work");

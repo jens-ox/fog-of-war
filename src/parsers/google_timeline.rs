@@ -25,11 +25,9 @@ impl Parser for GoogleTimelineParser {
         let file = File::open(&timeline_path)?;
         let reader = BufReader::new(file);
 
-        // Parse as raw JSON values first
         let timeline_entries: Vec<Value> = serde_json::from_reader(reader)
             .map_err(|e| format!("Failed to parse Google Timeline JSON: {}", e))?;
 
-        // Use parallel iterator to extract and parse geo strings
         let points: Result<Vec<Point>, String> = timeline_entries
             .into_par_iter()
             .flat_map(|entry| extract_geo_strings_vec(&entry))
@@ -53,14 +51,12 @@ impl Parser for GoogleTimelineParser {
     }
 }
 
-/// Recursively extract all geo strings from a JSON value and return them as a Vec
 fn extract_geo_strings_vec(value: &Value) -> Vec<String> {
     let mut geo_strings = Vec::new();
     extract_geo_strings_recursive(value, &mut geo_strings);
     geo_strings
 }
 
-/// Helper function to recursively extract geo strings
 fn extract_geo_strings_recursive(value: &Value, geo_strings: &mut Vec<String>) {
     match value {
         Value::String(s) => {
@@ -78,27 +74,23 @@ fn extract_geo_strings_recursive(value: &Value, geo_strings: &mut Vec<String>) {
                 extract_geo_strings_recursive(v, geo_strings);
             }
         }
-        _ => {} // Ignore other value types
+        _ => {} // ignore other value types
     }
 }
 
-/// Parse a geo string in the format "geo:latitude,longitude" into a Point
-/// Returns None if the string is malformed or coordinates are invalid
+// geo:[lat],[lon]
 fn parse_geo_string(geo_str: &str) -> Option<Point> {
-    // Check for proper geo: prefix
     if !geo_str.starts_with("geo:") {
         return None;
     }
 
-    let coords = &geo_str[4..]; // Remove "geo:" prefix
+    let coords = &geo_str[4..];
     let parts: Vec<&str> = coords.split(',').collect();
 
-    // Must have exactly two parts (lat,lon)
     if parts.len() != 2 {
         return None;
     }
 
-    // Parse latitude and longitude
     let latitude: f64 = parts[0].parse().ok()?;
     let longitude: f64 = parts[1].parse().ok()?;
 

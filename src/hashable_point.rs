@@ -3,14 +3,12 @@ use rayon::prelude::*;
 use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
 
-/// Round coordinates to nearest 10 meters
 pub fn round_to_10_meters(point: Point) -> Point {
     let x = (point.x() / 10.0).round() * 10.0;
     let y = (point.y() / 10.0).round() * 10.0;
     Point::new(x, y)
 }
 
-/// Wrapper for Point that implements Hash and Eq based on rounded coordinates
 #[derive(Clone)]
 pub struct HashablePoint {
     x_rounded: i64,
@@ -50,8 +48,6 @@ impl From<HashablePoint> for Point {
     }
 }
 
-/// Sanitize a collection of points by rounding to 10 meters and removing duplicates
-/// Returns the sanitized points and statistics about the deduplication
 pub fn sanitize(points: Vec<Point>) -> (Vec<Point>, SanitizeStats) {
     let original_count = points.len();
 
@@ -71,11 +67,9 @@ pub fn sanitize(points: Vec<Point>) -> (Vec<Point>, SanitizeStats) {
         original_count
     );
 
-    // Convert to hashable points (this automatically rounds and enables deduplication)
     let unique_points: HashSet<HashablePoint> =
         points.into_par_iter().map(HashablePoint::from).collect();
 
-    // Convert back to regular points
     let sanitized_points: Vec<Point> = unique_points.into_iter().map(Point::from).collect();
 
     let final_count = sanitized_points.len();
@@ -91,7 +85,6 @@ pub fn sanitize(points: Vec<Point>) -> (Vec<Point>, SanitizeStats) {
     (sanitized_points, stats)
 }
 
-/// Statistics from the sanitization process
 #[derive(Debug)]
 pub struct SanitizeStats {
     pub final_count: usize,
