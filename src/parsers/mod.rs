@@ -1,3 +1,4 @@
+pub mod fit;
 pub mod gpx;
 pub mod google_timeline;
 

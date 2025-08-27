@@ -4,7 +4,7 @@ mod parsers;
 use fgbfile::FgbFile;
 use geo::Point;
 use hashable_point::sanitize;
-use parsers::{Parser, google_timeline::GoogleTimelineParser, gpx::GpxParser};
+use parsers::{Parser, fit::FitParser, google_timeline::GoogleTimelineParser, gpx::GpxParser};
 use proj::Proj;
 use rayon::prelude::*;
 use serde::Serialize;
@@ -30,7 +30,11 @@ fn main() -> Result<(), ()> {
     let data_dir = Path::new(DATA_DIR);
 
     // Initialize all parsers
-    let parsers: Vec<Box<dyn Parser>> = vec![Box::new(GpxParser), Box::new(GoogleTimelineParser)];
+    let parsers: Vec<Box<dyn Parser>> = vec![
+        Box::new(GpxParser), 
+        Box::new(GoogleTimelineParser),
+        Box::new(FitParser),
+    ];
 
     // Collect points from all parsers
     let mut all_points = Vec::new();
