@@ -1,10 +1,14 @@
+mod hashable_point;
+
 use fgbfile::FgbFile;
 use geo::Point;
 use gpx::Gpx;
+use hashable_point::HashablePoint;
 use indicatif::ParallelProgressIterator;
 use proj::Proj;
 use rayon::prelude::*;
 use serde::Serialize;
+use std::collections::HashSet;
 use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
@@ -79,6 +83,26 @@ fn main() -> Result<(), ()> {
     });
 
     println!("Successfully transformed {} points", all_points.len());
+    
+    // Round coordinates to nearest 10 meters and deduplicate
+    println!("Rounding coordinates to nearest 10 meters and deduplicating...");
+    let original_count = all_points.len();
+    
+    // Convert to hashable points (this automatically rounds and enables deduplication)
+    let unique_points: HashSet<HashablePoint> = all_points
+        .into_par_iter()
+        .map(HashablePoint::from)
+        .collect();
+    
+    // Convert back to regular points
+    all_points = unique_points.into_iter().map(Point::from).collect();
+    
+    let final_count = all_points.len();
+    let removed_count = original_count - final_count;
+    let removal_percentage = (removed_count as f64 / original_count as f64) * 100.0;
+    
+    println!("Removed {} duplicate points ({:.2}% reduction)", removed_count, removal_percentage);
+    println!("Final point count: {}", final_count);
 
     // Write to FlatGeobuf file
     println!("Writing points to {}...", OUT_PATH);
