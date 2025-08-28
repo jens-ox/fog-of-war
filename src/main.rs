@@ -4,7 +4,7 @@ mod io;
 mod parsers;
 
 use buffer::build_buffered_geometries;
-use hashable_point::sanitize;
+use hashable_point::{sanitize, sanitize_to_1m_no_dedup};
 use io::{write_buffered_to_flatgeobuf, write_to_flatgeobuf};
 use parsers::{Parser, fit::FitParser, google_timeline::GoogleTimelineParser, gpx::GpxParser};
 use proj::Proj;
@@ -14,6 +14,7 @@ pub const DATA_DIR: &str = "data";
 pub const OUT_PATH: &str = "data/out.fgb";
 pub const OUT_PATH_100: &str = "data/out_buffer_100.fgb";
 pub const OUT_PATH_1000: &str = "data/out_buffer_1000.fgb";
+pub const HEATMAP_PATH: &str = "data/heatmap.fgb";
 
 pub const EPSG_WGS84: i32 = 4326;
 pub const EPSG_METERS: i32 = 3857;
@@ -67,7 +68,22 @@ fn main() -> Result<(), ()> {
 
     println!("Successfully transformed {} points", all_points.len());
 
-    let (sanitized_points, stats) = sanitize(all_points);
+    // Process heatmap points (1m accuracy, no deduplication)
+    println!("\nProcessing heatmap points...");
+
+    // Sanitize to 1m accuracy without deduplication
+    let heatmap_sanitized = sanitize_to_1m_no_dedup(all_points);
+
+    println!("Writing heatmap points to {}...", HEATMAP_PATH);
+    write_to_flatgeobuf(&heatmap_sanitized, HEATMAP_PATH).expect("writing heatmap to FGB to work");
+
+    println!(
+        "✓ Successfully wrote {} heatmap points to {}",
+        heatmap_sanitized.len(),
+        HEATMAP_PATH
+    );
+
+    let (sanitized_points, stats) = sanitize(heatmap_sanitized);
     stats.print();
 
     println!("\nWriting points to {}...", OUT_PATH);

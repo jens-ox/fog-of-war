@@ -14,9 +14,34 @@ type PMTilesFile = {
 }
 
 const PMTILES_FILES: PMTilesFile[] = [
-  { id: 'base', name: 'Base Points', filename: 'out.pmtiles', description: 'Original point data', type: 'points' },
-  { id: 'buffer100', name: 'Buffer 100m', filename: 'out_buffer_100.pmtiles', description: '100m buffer polygons', type: 'polygons' },
-  { id: 'buffer1000', name: 'Buffer 1000m', filename: 'out_buffer_1000.pmtiles', description: '1000m buffer polygons', type: 'polygons' }
+  {
+    id: 'base',
+    name: 'Base Points',
+    filename: 'out.pmtiles',
+    description: 'Original point data',
+    type: 'points'
+  },
+  {
+    id: 'buffer100',
+    name: 'Buffer 100m',
+    filename: 'out_buffer_100.pmtiles',
+    description: '100m buffer polygons',
+    type: 'polygons'
+  },
+  {
+    id: 'buffer1000',
+    name: 'Buffer 1000m',
+    filename: 'out_buffer_1000.pmtiles',
+    description: '1000m buffer polygons',
+    type: 'polygons'
+  },
+  {
+    id: 'heatmap',
+    name: 'Heatmap',
+    filename: 'heatmap.pmtiles',
+    description: '1m accuracy heatmap points',
+    type: 'points'
+  }
 ]
 
 export const Map = () => {
@@ -65,17 +90,13 @@ export const Map = () => {
     const currentMap = map.current
     try {
       // Remove all possible layers for the current source
-      const layers = [
-        `${currentSourceId}-points`, 
-        `${currentSourceId}-polygons`,
-        `${currentSourceId}-polygons-stroke`
-      ]
-      layers.forEach(layerId => {
+      const layers = [`${currentSourceId}-points`, `${currentSourceId}-polygons`, `${currentSourceId}-polygons-stroke`]
+      layers.forEach((layerId) => {
         if (currentMap.getLayer(layerId)) {
           currentMap.removeLayer(layerId)
         }
       })
-      
+
       if (currentMap.getSource(currentSourceId)) {
         currentMap.removeSource(currentSourceId)
       }
@@ -93,7 +114,7 @@ export const Map = () => {
 
     try {
       const pmtilesUrl = `pmtiles://${file.filename}`
-      const sourceId = `pmtiles-${file.id}`
+      const sourceId = `pmtiles-${file.filename}`
       const layerId = `${sourceId}-${file.type}`
 
       // Try to read PMTiles metadata to get layer information
@@ -107,50 +128,79 @@ export const Map = () => {
         metadata?.vector_layers && metadata.vector_layers.length > 0 ? metadata.vector_layers[0].id : 'default'
 
       // Add the PMTiles source
-      map.current.addSource(sourceId, {
-        type: 'vector',
-        url: pmtilesUrl
-      })
+      if (!map.current.getSource(sourceId))
+        map.current.addSource(sourceId, {
+          type: 'vector',
+          url: pmtilesUrl
+        })
 
       // Add appropriate layer based on file type
-      if (file.type === 'points') {
-        map.current.addLayer({
-          id: layerId,
-          type: 'circle',
-          source: sourceId,
-          'source-layer': sourceLayer,
-          paint: {
-            'circle-pitch-scale': 'map',
-            'circle-radius': 4,
-            'circle-opacity': 0.2,
-            'circle-color': '#3b82f6'
-          }
-        })
+      if (file.id === 'heatmap') {
+        if (!map.current.getLayer(layerId))
+          map.current.addLayer({
+            id: layerId,
+            type: 'heatmap',
+            source: sourceId,
+            'source-layer': sourceLayer,
+            paint: {
+              'heatmap-weight': 0.2,
+              'heatmap-intensity': 1,
+              'heatmap-color': [
+                'interpolate',
+                ['linear'],
+                ['heatmap-density'],
+                0, 'rgba(0,0,255,0)',
+                0.1, 'royalblue',
+                0.3, 'cyan',
+                0.5, 'lime',
+                0.7, 'yellow',
+                1, 'red'
+              ],
+              'heatmap-radius': 10,
+              'heatmap-opacity': 0.8
+            }
+          })
+      } else if (file.type === 'points') {
+        if (!map.current.getLayer(layerId))
+          map.current.addLayer({
+            id: layerId,
+            type: 'circle',
+            source: sourceId,
+            'source-layer': sourceLayer,
+            paint: {
+              'circle-pitch-scale': 'map',
+              'circle-radius': 4,
+              'circle-opacity': 0.2,
+              'circle-color': '#3b82f6'
+            }
+          })
       } else {
         // For polygons (buffer zones)
-        map.current.addLayer({
-          id: layerId,
-          type: 'fill',
-          source: sourceId,
-          'source-layer': sourceLayer,
-          paint: {
-            'fill-color': file.id === 'buffer100' ? '#10b981' : '#f59e0b',
-            'fill-opacity': 0.3
-          }
-        })
-        
+        if (!map.current.getLayer(layerId))
+          map.current.addLayer({
+            id: layerId,
+            type: 'fill',
+            source: sourceId,
+            'source-layer': sourceLayer,
+            paint: {
+              'fill-color': file.id === 'buffer100' ? '#10b981' : '#f59e0b',
+              'fill-opacity': 0.3
+            }
+          })
+
         // Add stroke for polygons
-        map.current.addLayer({
-          id: `${layerId}-stroke`,
-          type: 'line',
-          source: sourceId,
-          'source-layer': sourceLayer,
-          paint: {
-            'line-color': file.id === 'buffer100' ? '#059669' : '#d97706',
-            'line-width': 1,
-            'line-opacity': 0.8
-          }
-        })
+        if (!map.current.getLayer(`${layerId}-stroke`))
+          map.current.addLayer({
+            id: `${layerId}-stroke`,
+            type: 'line',
+            source: sourceId,
+            'source-layer': sourceLayer,
+            paint: {
+              'line-color': file.id === 'buffer100' ? '#059669' : '#d97706',
+              'line-width': 1,
+              'line-opacity': 0.8
+            }
+          })
       }
 
       setCurrentSourceId(sourceId)
@@ -183,7 +233,7 @@ export const Map = () => {
   // Load initial PMTiles when map is ready
   useEffect(() => {
     if (!map.current) return
-    
+
     map.current.on('load', () => {
       loadPMTilesFile(selectedFile)
     })
@@ -200,7 +250,7 @@ export const Map = () => {
     <div className="flex flex-col flex-grow">
       {/* Map container */}
       <div className="flex-grow relative" ref={mapContainer}></div>
-      
+
       {/* Bottom switcher bar */}
       <div className="bg-gray-900 bg-opacity-90 backdrop-blur-sm border-t border-gray-700 p-4">
         <div className="flex items-center justify-center space-x-4">
@@ -220,10 +270,12 @@ export const Map = () => {
                   <div
                     className={`w-3 h-3 rounded ${
                       file.type === 'points'
-                        ? 'bg-blue-400'
+                        ? file.id === 'heatmap'
+                          ? 'bg-red-400'
+                          : 'bg-blue-400'
                         : file.id === 'buffer100'
-                        ? 'bg-emerald-400'
-                        : 'bg-amber-400'
+                          ? 'bg-emerald-400'
+                          : 'bg-amber-400'
                     }`}
                   ></div>
                   <span>{file.name}</span>
@@ -231,9 +283,7 @@ export const Map = () => {
               </button>
             ))}
           </div>
-          <div className="text-gray-400 text-xs w-xs">
-            {selectedFile.description}
-          </div>
+          <div className="text-gray-400 text-xs w-xs">{selectedFile.description}</div>
         </div>
       </div>
     </div>

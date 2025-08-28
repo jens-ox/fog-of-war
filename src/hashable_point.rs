@@ -9,6 +9,12 @@ pub fn round_to_10_meters(point: Point) -> Point {
     Point::new(x, y)
 }
 
+pub fn round_to_1_meter(point: Point) -> Point {
+    let x = point.x().round();
+    let y = point.y().round();
+    Point::new(x, y)
+}
+
 #[derive(Clone)]
 pub struct HashablePoint {
     x_rounded: i64,
@@ -83,6 +89,28 @@ pub fn sanitize(points: Vec<Point>) -> (Vec<Point>, SanitizeStats) {
     };
 
     (sanitized_points, stats)
+}
+
+pub fn sanitize_to_1m_no_dedup(points: Vec<Point>) -> Vec<Point> {
+    let original_count = points.len();
+    
+    if original_count == 0 {
+        return points;
+    }
+
+    println!(
+        "Sanitizing {} points to 1m accuracy (no deduplication)...",
+        original_count
+    );
+
+    let sanitized_points: Vec<Point> = points
+        .into_par_iter()
+        .map(round_to_1_meter)
+        .collect();
+
+    println!("Final point count: {}", sanitized_points.len());
+    
+    sanitized_points
 }
 
 #[derive(Debug)]
