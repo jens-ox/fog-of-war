@@ -1,25 +1,22 @@
+mod buffer;
 mod hashable_point;
+mod io;
 mod parsers;
 
-use fgbfile::FgbFile;
-use geo::Point;
+use buffer::build_buffered_geometries;
 use hashable_point::sanitize;
+use io::{write_buffered_to_flatgeobuf, write_to_flatgeobuf};
 use parsers::{Parser, fit::FitParser, google_timeline::GoogleTimelineParser, gpx::GpxParser};
 use proj::Proj;
-use rayon::prelude::*;
-use serde::Serialize;
 use std::path::Path;
 
 pub const DATA_DIR: &str = "data";
 pub const OUT_PATH: &str = "data/out.fgb";
+pub const OUT_PATH_100: &str = "data/out_buffer_100.fgb";
+pub const OUT_PATH_1000: &str = "data/out_buffer_1000.fgb";
 
 pub const EPSG_WGS84: i32 = 4326;
 pub const EPSG_METERS: i32 = 3857;
-
-#[derive(Serialize)]
-pub struct PointGeometry {
-    geo: Point,
-}
 
 thread_local! {
     // project WGS84 to proper EPSG
@@ -75,7 +72,7 @@ fn main() -> Result<(), ()> {
 
     println!("\nWriting points to {}...", OUT_PATH);
 
-    write_to_flatgeobuf(&sanitized_points).expect("writing to FGB to work");
+    write_to_flatgeobuf(&sanitized_points, OUT_PATH).expect("writing to FGB to work");
 
     println!(
         "✓ Successfully wrote {} points to {}",
@@ -83,19 +80,43 @@ fn main() -> Result<(), ()> {
         OUT_PATH
     );
 
-    Ok(())
-}
+    println!("\nBuilding buffered 100m geometries...");
+    let buffered_geometries = build_buffered_geometries(
+        &sanitized_points,
+        50.0,      // 50m radius
+        8,         // quadrant segments
+        1_000,     // chunk size
+        Some(0.5), // simplify tolerance
+    );
 
-fn write_to_flatgeobuf(points: &Vec<Point>) -> Result<(), Box<dyn std::error::Error>> {
-    let point_geometries: Vec<PointGeometry> = points
-        .into_par_iter()
-        .map(|p| PointGeometry { geo: p.to_owned() })
-        .collect();
-    FgbFile::create(OUT_PATH)
-        .unwrap()
-        .epsg(EPSG_METERS)
-        .write_features(&point_geometries)
-        .expect("file to be written");
+    println!("Writing buffered geometries to {}...", OUT_PATH_100);
+    write_buffered_to_flatgeobuf(&buffered_geometries, OUT_PATH_100)
+        .expect("writing buffered geometries to FGB to work");
+
+    println!(
+        "✓ Successfully wrote {} buffered geometries to {}",
+        buffered_geometries.len(),
+        OUT_PATH_100
+    );
+
+    println!("\nBuilding buffered 1km geometries...");
+    let buffered_geometries = build_buffered_geometries(
+        &sanitized_points,
+        500.0,     // 500m radius
+        8,         // quadrant segments
+        1_000,     // chunk size
+        Some(0.5), // simplify tolerance
+    );
+
+    println!("Writing buffered geometries to {}...", OUT_PATH_1000);
+    write_buffered_to_flatgeobuf(&buffered_geometries, OUT_PATH_1000)
+        .expect("writing buffered geometries to FGB to work");
+
+    println!(
+        "✓ Successfully wrote {} buffered geometries to {}",
+        buffered_geometries.len(),
+        OUT_PATH_1000
+    );
 
     Ok(())
 }
