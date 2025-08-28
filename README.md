@@ -1,6 +1,6 @@
 # fog of war
 
-![Screenshot](.github/screenshot.png)
+![Screenshot](.github/screenshot.jpg)
 
 Convert data from different sources to a fog of war-style map.
 
