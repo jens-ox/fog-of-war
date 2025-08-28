@@ -1,6 +1,8 @@
-# point-cloud
+# fog of war
 
-Convert data from different sources to a point cloud.
+![Screenshot](.github/screenshot.png)
+
+Convert data from different sources to a fog of war-style map.
 
 Currently supported:
 
@@ -9,17 +11,16 @@ Currently supported:
 
 ## Usage
 
-- `brew install tippecanoe`
-- Clone repo
-- put data in `./data`
-- run `cargo run -r`
+First, prepare the data:
 
-Creates `out.fgb`.
+1. Collect all data and put it in the `data` directory.
+2. Install [tippecanoe](https://github.com/felt/tippecanoe) (e.g. `brew install tippecanoe`).
+3. Clone the repo.
+4. Run `cargo run -r`.
 
-Convert that to a PMTiles file:
+Second, render the data. Inside the `ui` directory, do:
 
-```sh
-tippecanoe -o data/out.pmtiles --projection=EPSG:3857 --force --cluster-distance=1 -r1 data/out.fgb
-```
+1. `bun install`
+2. `bun run dev`
 
-You can now browse that file using [pmtiles.io](https://pmtiles.io/).
+You should now be able to see an interactive map on `http://localhost:5173`.

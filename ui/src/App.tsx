@@ -1,5 +1,11 @@
+import { Map } from './components/Map'
+
 function App() {
-  return <div>hello world</div>
+  return (
+    <div className="flex flex-col min-h-screen">
+      <Map />
+    </div>
+  )
 }
 
 export default App
