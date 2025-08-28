@@ -2,11 +2,12 @@
 
 ![Screenshot](.github/screenshot.jpg)
 
-Convert data from different sources to a fog of war-style map. It generates three layers:
+Convert data from different sources to a fog of war-style map. It generates four layers:
 
 - **Points**: all points from your sources, rounded to 10m and deduplicated.
 - **50m radius circles**: draws a circle with 50m radius around all points and dissolves them. Holes with a surface smaller than a circle with 50m radius are removed.
 - **500m radius circles**: same as the 50m circles.
+- **Heatmap**: non-deduplicated points rendered as a heatmap.
 
 ## Data
 
